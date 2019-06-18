@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const morgan = require('morgan');
 
 const port = process.env.PORT || 3000; // uses process.env.PORT in case deployed
 
@@ -80,6 +81,7 @@ function delProduct (file, productId) {
       }
 
       let data = readData.toString();
+      
       try {
         if(!data) throw "JSON Data did not load";
         data = JSON.parse(data);
@@ -88,7 +90,7 @@ function delProduct (file, productId) {
       }
 
       data.products = removeProduct(data.products, productId);
-
+      
       fs.writeFile(file, JSON.stringify(data), (err) => {
         if(err) {
           return reject(err);
@@ -101,29 +103,31 @@ function delProduct (file, productId) {
 
 //Pipeline
 const app = express();
+app.use(morgan('dev'));
 
 app.get('/', (req, res, next) => {
   res.sendFile(path.join(__dirname, 'index.html'));
-
 })
 
-app.use(express.urlencoded({ extended: false }));//adds form data to POST's req.body
+app.use(express.json());
 
 app.route('/api/products')
-  .get((req, res, next) => {
-    res.sendFile(productsFile);
-  })
-  .post((req, res, next) => {
-    const newProduct = req.body;
-    console.log(newProduct);
-    postProduct(productsFile, newProduct);
-    res.redirect(201, 'back');
-  })
+.get((req, res, next) => {
+  res.sendFile(productsFile);
+})
+.post((req, res, next) => {
+  const newProduct = req.body;
+  postProduct(productsFile, newProduct);
+  res.status(201);
+  res.end();
+})
 
+// app.use(express.urlencoded({ extended: false }));//adds data submitted by form with POST request to req.body
 app.delete('/api/products/:id', (req, res, next) => {
   const productId = Number(req.params.id);
   delProduct(productsFile, productId);
-  res.redirect(204, '/back');
+  res.status(204);
+  res.end();
 })
 
 app.listen(port, () => console.log(`Listening on port: ${port}`));
