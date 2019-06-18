@@ -1,38 +1,161 @@
 <html>
   <head>
-<style>
-</style>
-    <script src='https://cdnjs.cloudflare.com/ajax/libs/axios/0.18.0/axios.js'></script>
-    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
-    <script src="https://unpkg.com/react@16/umd/react.development.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@16/umd/react-dom.development.js" crossorigin></script>
-    <script src='https://cdnjs.cloudflare.com/ajax/libs/react-router-dom/5.0.0/react-router-dom.js'></script>
+  <style>
+    .active {
+      font-weight: bolder;
+      color: red;
+    }
+  </style>
+  <script src='https://cdnjs.cloudflare.com/ajax/libs/axios/0.18.0/axios.js'></script>
+  <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+  <script src="https://unpkg.com/react@16/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@16/umd/react-dom.development.js" crossorigin></script>
+  <script src='https://cdnjs.cloudflare.com/ajax/libs/react-router-dom/5.0.0/react-router-dom.js'></script>
   </head>
   <body>
     <div id='root'></div>
 
     <script type='text/babel'>
+      const {Component} = React;
+      const {HashRouter, Route, NavLink, Link, Redirect} = ReactRouterDOM;
+
       class App extends React.Component{
         constructor(){
           super();
           this.state={
-            data: 0
+            products: []
           };
-        };
+          this.getProducts = this.getProducts.bind(this);
+          this.handleDelete = this.handleDelete.bind(this);
+        }
+
+        getProducts() {
+          axios.get('/api/products')
+            .then(response => {
+              const {products} = response.data;
+              this.setState({products});
+            });
+        }
+
+        handleDelete(productId) {
+          axios.delete(`/api/products/${productId}`);
+          this.getProducts();
+        }
+
+        componentDidMount() {
+          this.getProducts();
+        }
+
         render(){
-          const { data } = this.state;
+          const {products} = this.state;
+          const {getProducts, handleDelete} = this;
           return (
-            <div>{data}</div>
+            <div>
+            <h1>Acme Products</h1>
+            <HashRouter>
+              <Route path="/" render={() => <Navbar count = {products.length} />} />
+              <Route path="/products" render={() => <Inventory getProducts={getProducts} handleDelete={handleDelete} products={products} />} />
+            </HashRouter>
+            </div>
           )
-        };
-        componentDidMount(){
-          setInterval(() => {
-            axios.get('/api/data')
-            .then(res => res.data)
-            .then(data => this.setState({data: data.random}))
-          }, 500);
         }
       }
+      
+      function Navbar(props) {
+        const {count} = props;
+        return (
+          <div>
+            <ul>
+              <NavLink exact to="/"><li>Home</li></NavLink>
+              <NavLink to="/products"><li>Products ({count})</li></NavLink>
+            </ul>
+          </div>
+        )
+      }
+      
+      class Inventory extends Component {
+        constructor(props) {
+          super(props);
+        }
+
+        componentDidUpdate(prevProps) {
+          if (prevProps.products.toString() !== this.props.products.toString()) {
+            this.props.getProducts();
+          }
+        }
+
+        render() {
+          const {products, handleDelete} = this.props;
+          return (
+            <div>
+              <h2>Inventory</h2>
+              <HashRouter basename="/products">
+                <NavLink to="/new">Add New Product</NavLink>
+                <Route path="/new" render={() => <ProductForm products={products}/>}/>
+              </HashRouter>
+              <ul>
+                {
+                  products.map(product => 
+                      product ? <li key={product.id}>{`${product.name} (${product.qnt||0})`}<button onClick={()=>handleDelete(product.id)}><span role='image' aria-label='delete'>❌</span></button></li>:''
+                  )
+                }
+              </ul>
+            </div>
+          )
+        }
+      }
+      
+      class ProductForm extends Component {
+        constructor(props) {
+          super(props);
+          this.state = {
+            product: {
+              name: '',
+              qnt: 0
+            }
+          };
+          this.handleChange = this.handleChange.bind(this);
+          this.handleCancel = this.handleCancel.bind(this);
+        }
+
+        handleChange(event) {
+          const {name, value} = event.target;
+          this.setState({[name]:value});
+        }
+
+        handleCancel(event) {
+          event.preventDefault();
+          <HashRouter>
+            <Redirect to="/#/products" />
+          </HashRouter>
+        }
+
+        render() {
+          const {name, qnt} = this.state;
+          const {handleChange, handleCancel} = this;
+          return (
+            <div>
+              <form method="POST" action="/api/products">
+                <fieldset>
+                  <legend>New Product</legend>
+                  <label htmlFor="name">Product Name: </label>
+                  <br/>
+                  <input type="text" name="name" onChange={handleChange} value={name} required/>
+                  <br/>
+                  <label htmlFor="qnt">Quantity:</label>
+                  <br/>
+                  <input type="number" name="qnt" onChange={handleChange} value={qnt}/>
+                  <br/><br/>
+                  <input type="submit" value="Submit"/>
+                  <button onClick={handleCancel}>Cancel</button>
+                  <br/>
+                </fieldset>
+              </form>
+            </div>
+          )
+        }
+      }
+      
 
       const root = document.querySelector('#root');
       ReactDOM.render(<App />, root);
